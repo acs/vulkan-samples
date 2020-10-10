@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <optional>
 #include <stdexcept>
 #include <vector>
 
@@ -117,7 +118,7 @@ private:
 
         for (const auto &device : devices)
         {
-            if (isDeviceSuitable(device))
+            if (isPhysicalDeviceSuitable(device))
             {
                 physicalDevice = device;
                 break;
@@ -130,7 +131,17 @@ private:
         }
     }
 
-    bool isDeviceSuitable(VkPhysicalDevice device)
+    struct QueueFamilyIndices
+    {
+        std::optional<uint32_t> graphicsFamily;
+
+        bool isComplete()
+        {
+            return graphicsFamily.has_value();
+        }
+    };
+
+    bool isPhysicalDeviceSuitable(VkPhysicalDevice device)
     {
         VkPhysicalDeviceProperties deviceProperties;
         vkGetPhysicalDeviceProperties(device, &deviceProperties);
@@ -138,8 +149,44 @@ private:
         vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
 
         // Example: GPU supports geometry shader
-        return deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU &&
-               deviceFeatures.geometryShader;
+        bool gpuOK = deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU &&
+                     deviceFeatures.geometryShader;
+
+        // Check queues available
+        QueueFamilyIndices indices = findQueueFamilies(device);
+
+        bool queueOk = indices.isComplete();
+
+        return gpuOK && queueOk;
+    }
+
+    QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device)
+    {
+        QueueFamilyIndices indices;
+        // Assign index to queue families that could be found
+
+        uint32_t queueFamilyCount = 0;
+        vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
+
+        std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+        vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
+
+        int i = 0;
+        for (const auto &queueFamily : queueFamilies)
+        {
+            if (indices.isComplete())
+            {
+                break;
+            }
+            if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT)
+            {
+                indices.graphicsFamily = i;
+            }
+
+            i++;
+        }
+
+        return indices;
     }
 
     void checkExtensions()
